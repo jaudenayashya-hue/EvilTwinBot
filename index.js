@@ -1,27 +1,23 @@
 require("dotenv").config();
 
 const fs = require("fs");
+const express = require("express");
 const TelegramBot = require("node-telegram-bot-api");
 
-// Telegram token
-const token = process.env.TELEGRAM_BOT_TOKEN;
+const app = express();
+app.use(express.json());
 
-// Create bot
-const bot = new TelegramBot(token, {
-  polling: {
-    autoStart: true,
-    interval: 1000,
-    params: {
-      timeout: 10
-    }
-  }
-});
-bot.stopPolling();
-bot.startPolling();
-// Load brain file
+// ENV
+const token = process.env.TELEGRAM_BOT_TOKEN;
+const url = process.env.WEBHOOK_URL;
+
+// BOT
+const bot = new TelegramBot(token);
+
+// brain
 const brain = fs.readFileSync("brain.txt", "utf8");
 
-// 🔥 GROQ AI FUNCTION (CLOUD, NO OLLAMA)
+// GROQ AI
 async function askAI(userMessage) {
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -46,38 +42,38 @@ async function askAI(userMessage) {
 
   const data = await response.json();
 
-  // safety check (prevents crash)
   if (!data.choices || !data.choices[0]) {
-    return "AI error: no response";
+    return "AI error";
   }
 
   return data.choices[0].message.content;
 }
 
-// Telegram message handler
-bot.on("message", async (msg) => {
+// TELEGRAM RECEIVE MESSAGE (WEBHOOK)
+app.post(`/bot${token}`, async (req, res) => {
+  const msg = req.body.message;
+
+  if (!msg || !msg.text) return res.sendStatus(200);
 
   const chatId = msg.chat.id;
   const userMessage = msg.text;
 
-  // ignore empty messages (stickers/images)
-  if (!userMessage) return;
-
-  bot.sendMessage(chatId, "thinking...");
-
   try {
-
     const reply = await askAI(userMessage);
-
     bot.sendMessage(chatId, reply);
-
-  } catch (error) {
-
-    console.log(error);
-
+  } catch (err) {
+    console.log(err);
     bot.sendMessage(chatId, "Something broke.");
   }
 
+  res.sendStatus(200);
 });
 
-console.log("ANOTHA ME is alive 🔥");
+// START SERVER + SET WEBHOOK
+app.listen(process.env.PORT || 3000, async () => {
+  console.log("Server running");
+
+  await bot.setWebHook(`${url}/bot${token}`);
+
+  console.log("Webhook set:", `${url}/bot${token}`);
+});

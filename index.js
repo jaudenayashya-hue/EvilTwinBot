@@ -7,8 +7,17 @@ const TelegramBot = require("node-telegram-bot-api");
 const token = process.env.TELEGRAM_BOT_TOKEN;
 
 // Create bot
-const bot = new TelegramBot(token, { polling: true });
-
+const bot = new TelegramBot(token, {
+  polling: {
+    autoStart: true,
+    interval: 1000,
+    params: {
+      timeout: 10
+    }
+  }
+});
+bot.stopPolling();
+bot.startPolling();
 // Load brain file
 const brain = fs.readFileSync("brain.txt", "utf8");
 
